@@ -138,9 +138,9 @@ export async function generatePrediction(symbol: string, timeframe = "1D") {
 }
 
 // Watchlist operations
-export async function fetchWatchlist(userId = "default"): Promise<string[]> {
+export async function fetchWatchlist(): Promise<string[]> {
   try {
-    const response = await fetch(`/api/watchlist?userId=${userId}`)
+    const response = await fetch(`/api/watchlist`)
     const data = await response.json()
 
     if (!data.success) {
@@ -154,14 +154,14 @@ export async function fetchWatchlist(userId = "default"): Promise<string[]> {
   }
 }
 
-export async function addToWatchlist(symbol: string, userId = "default"): Promise<string[]> {
+export async function addToWatchlist(symbol: string): Promise<string[]> {
   try {
     const response = await fetch("/api/watchlist", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ symbol, userId }),
+      body: JSON.stringify({ symbol }),
     })
 
     const data = await response.json()
@@ -177,14 +177,14 @@ export async function addToWatchlist(symbol: string, userId = "default"): Promis
   }
 }
 
-export async function removeFromWatchlist(symbol: string, userId = "default"): Promise<string[]> {
+export async function removeFromWatchlist(symbol: string): Promise<string[]> {
   try {
     const response = await fetch("/api/watchlist", {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ symbol, userId }),
+      body: JSON.stringify({ symbol }),
     })
 
     const data = await response.json()

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import bcrypt from "bcryptjs"
+import { AUTH_COOKIE_NAME, signAuthToken } from "@/lib/auth"
 
 export async function POST(request: Request) {
   try {
@@ -44,11 +45,25 @@ export async function POST(request: Request) {
       createdAt: user.createdAt,
     }
 
-    return NextResponse.json({
+    const token = signAuthToken({ id: userData.id, name: userData.name, email: userData.email })
+
+    const response = NextResponse.json({
       success: true,
       data: userData,
       message: "Login successful"
     })
+
+    response.cookies.set({
+      name: AUTH_COOKIE_NAME,
+      value: token,
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    })
+
+    return response
 
   } catch (error) {
     console.error("Login error:", error)

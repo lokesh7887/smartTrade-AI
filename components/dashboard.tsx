@@ -667,7 +667,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                 </TabsContent>
                 <TabsContent value="watchlist">
                   <WatchlistManager
-                    userId="default"
                     onStockSelect={(symbol) => {
                       // This would need to be updated to work with the new search system
                       console.log("Stock selected from watchlist:", symbol)
