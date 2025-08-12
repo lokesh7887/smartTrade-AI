@@ -248,7 +248,7 @@ function LoginForm({ onLogin, loading }: { onLogin: (email: string, password: st
               </Button>
             </div>
           </div>
-          <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
+          <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 focus:bg-blue-700 text-white transition-colors" disabled={loading}>
             {loading ? (
               <>
                 <LoadingSpinner size="sm" className="mr-2" />
@@ -347,7 +347,7 @@ function SignupForm({
               </Button>
             </div>
           </div>
-          <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
+          <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 focus:bg-blue-700 text-white transition-colors" disabled={loading}>
             {loading ? (
               <>
                 <LoadingSpinner size="sm" className="mr-2" />

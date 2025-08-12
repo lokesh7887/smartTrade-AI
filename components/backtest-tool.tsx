@@ -397,7 +397,11 @@ export default function BacktestTool({ selectedStock }: BacktestToolProps) {
               )}
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                <Button onClick={runBacktest} disabled={loading} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+                <Button 
+                  onClick={runBacktest} 
+                  disabled={loading} 
+                  className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 focus:bg-blue-700 text-white w-full sm:w-auto transition-colors"
+                >
                   {loading ? (
                     <>
                       <LoadingSpinner size="sm" className="mr-2" />

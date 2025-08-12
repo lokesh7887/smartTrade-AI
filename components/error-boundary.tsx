@@ -48,7 +48,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
                   <p className="text-xs text-slate-400 font-mono">{this.state.error.message}</p>
                 </div>
               )}
-              <Button onClick={() => window.location.reload()} className="w-full bg-blue-600 hover:bg-blue-700">
+              <Button onClick={() => window.location.reload()} className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 focus:bg-blue-700 text-white transition-colors">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh Page
               </Button>
