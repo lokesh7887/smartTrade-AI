@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,22 @@ export default function Home() {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" })
+        if (res.ok) {
+          const data = await res.json()
+          setUser({ name: data.data.name, email: data.data.email })
+          setIsAuthenticated(true)
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    restoreSession()
+  }, [])
 
   const handleLogin = async (email: string, password: string) => {
     setLoading(true)
@@ -75,7 +91,10 @@ export default function Home() {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } catch {}
     setUser(null)
     setIsAuthenticated(false)
   }

@@ -2,23 +2,49 @@ import { NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import type { Watchlist, WatchlistItem } from "@/lib/models/Watchlist"
 import { ObjectId } from "mongodb"
+import { cookies } from "next/headers"
+import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth"
+
+function resolveUserIdParamFromCookieOrInput(rawUserId: string | null): { userIdString: string; isDefault: boolean } {
+  let userIdString = rawUserId || "default"
+  const isDefault = userIdString === "default"
+  return { userIdString, isDefault }
+}
+
+async function getResolvedUserObjectId(request: Request): Promise<ObjectId> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(AUTH_COOKIE_NAME)?.value
+  const url = new URL(request.url)
+  const queryUserId = url.searchParams.get("userId")
+
+  if (token) {
+    const payload = verifyAuthToken(token)
+    if (payload?.id) {
+      try {
+        return new ObjectId(payload.id)
+      } catch {}
+    }
+  }
+
+  const { userIdString, isDefault } = resolveUserIdParamFromCookieOrInput(queryUserId)
+  return isDefault ? new ObjectId("000000000000000000000000") : new ObjectId(userIdString)
+}
 
 export async function GET(request: Request) {
   try {
-    const url = new URL(request.url)
-    const userId = url.searchParams.get("userId") || "default"
-
     const db = await getDatabase()
     const watchlistsCollection = db.collection<Watchlist>("watchlists")
 
+    const userObjectId = await getResolvedUserObjectId(request)
+
     let watchlist = await watchlistsCollection.findOne({
-      userId: userId === "default" ? new ObjectId("000000000000000000000000") : new ObjectId(userId),
+      userId: userObjectId,
     })
 
     if (!watchlist) {
       // Create default watchlist
       const defaultWatchlist: Watchlist = {
-        userId: userId === "default" ? new ObjectId("000000000000000000000000") : new ObjectId(userId),
+        userId: userObjectId,
         name: "My Watchlist",
         symbols: [
           { symbol: "AAPL", addedAt: new Date() },
@@ -46,7 +72,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { symbol, userId = "default", notes, alertPrice, alertType } = await request.json()
+    const { symbol, userId = null, notes, alertPrice, alertType } = await request.json()
 
     if (!symbol) {
       return NextResponse.json({ success: false, error: "Symbol is required" }, { status: 400 })
@@ -55,7 +81,10 @@ export async function POST(request: Request) {
     const db = await getDatabase()
     const watchlistsCollection = db.collection<Watchlist>("watchlists")
 
-    const userObjectId = userId === "default" ? new ObjectId("000000000000000000000000") : new ObjectId(userId)
+    const userObjectId = userId
+      ? new ObjectId(userId === "default" ? "000000000000000000000000" : userId)
+      : await getResolvedUserObjectId(request)
+
     const upperSymbol = symbol.toUpperCase()
 
     const newItem: WatchlistItem = {
@@ -90,7 +119,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { symbol, userId = "default" } = await request.json()
+    const { symbol, userId = null } = await request.json()
 
     if (!symbol) {
       return NextResponse.json({ success: false, error: "Symbol is required" }, { status: 400 })
@@ -99,7 +128,9 @@ export async function DELETE(request: Request) {
     const db = await getDatabase()
     const watchlistsCollection = db.collection<Watchlist>("watchlists")
 
-    const userObjectId = userId === "default" ? new ObjectId("000000000000000000000000") : new ObjectId(userId)
+    const userObjectId = userId
+      ? new ObjectId(userId === "default" ? "000000000000000000000000" : userId)
+      : await getResolvedUserObjectId(request)
 
     await watchlistsCollection.updateOne(
       { userId: userObjectId },
