@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { Play, TrendingDown, DollarSign, Target, BarChart3, AlertTriangle, Search } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import LoadingSpinner from "@/components/loading-spinner"
+import StockSearch from "@/components/stock-search"
 
 interface StockSearchResult {
   symbol: string
@@ -67,8 +68,9 @@ interface BacktestToolProps {
 }
 
 export default function BacktestTool({ selectedStock }: BacktestToolProps) {
+  const [backtestStock, setBacktestStock] = useState<StockSearchResult | null>(selectedStock || null)
   const [params, setParams] = useState<BacktestParams>({
-    symbol: "AAPL",
+    symbol: "",
     strategy: "moving_average",
     startDate: "2023-01-01",
     endDate: "2024-01-01",
@@ -87,9 +89,10 @@ export default function BacktestTool({ selectedStock }: BacktestToolProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Update symbol when selectedStock changes
+  // Update symbol when selectedStock changes (from parent component)
   useEffect(() => {
     if (selectedStock) {
+      setBacktestStock(selectedStock)
       setParams(prev => ({
         ...prev,
         symbol: selectedStock.symbol
@@ -97,8 +100,26 @@ export default function BacktestTool({ selectedStock }: BacktestToolProps) {
     }
   }, [selectedStock])
 
+  // Update symbol when backtestStock changes (from local search)
+  useEffect(() => {
+    if (backtestStock) {
+      setParams(prev => ({
+        ...prev,
+        symbol: backtestStock.symbol
+      }))
+    }
+  }, [backtestStock])
+
+  const handleStockSelect = (stock: StockSearchResult) => {
+    setBacktestStock(stock)
+    setParams(prev => ({
+      ...prev,
+      symbol: stock.symbol
+    }))
+  }
+
   const runBacktest = async () => {
-    if (!selectedStock) {
+    if (!backtestStock) {
       setError("Please select a stock first to run backtesting")
       return
     }
@@ -114,7 +135,7 @@ export default function BacktestTool({ selectedStock }: BacktestToolProps) {
         },
         body: JSON.stringify({
           ...params,
-          symbol: selectedStock.symbol
+          symbol: backtestStock.symbol
         }),
       })
 
@@ -167,27 +188,6 @@ export default function BacktestTool({ selectedStock }: BacktestToolProps) {
     }).format(value)
   }
 
-  if (!selectedStock) {
-    return (
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardContent className="text-center py-12">
-          <Search className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">Select a Stock for Backtesting</h3>
-          <p className="text-slate-400 mb-6">
-            Use the search box above to select a stock, then run backtesting strategies on its historical data
-          </p>
-          <div className="flex flex-wrap justify-center gap-2 text-sm text-slate-500">
-            <span>Try searching for:</span>
-            <span className="text-blue-400">Apple</span>
-            <span className="text-blue-400">Reliance</span>
-            <span className="text-blue-400">Tesla</span>
-            <span className="text-blue-400">Microsoft</span>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
     <div className="space-y-4 md:space-y-6">
       <Card className="bg-slate-800/50 border-slate-700">
@@ -196,221 +196,230 @@ export default function BacktestTool({ selectedStock }: BacktestToolProps) {
             <div>
               <CardTitle className="text-white">Strategy Backtesting</CardTitle>
               <CardDescription className="text-slate-400">
-                Test your trading strategies on {selectedStock.symbol} ({selectedStock.name})
+                Search for any company and test your trading strategies on historical data
               </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs text-slate-400 border-slate-600">
-                {selectedStock.exchange}
-              </Badge>
-              <Badge variant="outline" className="text-xs text-slate-400 border-slate-600">
-                {selectedStock.country}
-              </Badge>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4 md:space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="symbol" className="text-slate-300">
-                Stock Symbol
-              </Label>
-              <Select value={params.symbol} onValueChange={(value) => updateParams("symbol", value)}>
-                <SelectTrigger className="bg-slate-700 border-slate-600">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-700 border-slate-600">
-                  <SelectItem value="AAPL">AAPL - Apple Inc.</SelectItem>
-                  <SelectItem value="GOOGL">GOOGL - Alphabet Inc.</SelectItem>
-                  <SelectItem value="MSFT">MSFT - Microsoft Corp.</SelectItem>
-                  <SelectItem value="TSLA">TSLA - Tesla Inc.</SelectItem>
-                  <SelectItem value="AMZN">AMZN - Amazon.com Inc.</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="strategy" className="text-slate-300">
-                Strategy
-              </Label>
-              <Select value={params.strategy} onValueChange={(value: any) => updateParams("strategy", value)}>
-                <SelectTrigger className="bg-slate-700 border-slate-600">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-700 border-slate-600">
-                  <SelectItem value="buy_and_hold">Buy & Hold</SelectItem>
-                  <SelectItem value="moving_average">Moving Average</SelectItem>
-                  <SelectItem value="rsi_strategy">RSI Strategy</SelectItem>
-                  <SelectItem value="momentum">Momentum</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="startDate" className="text-slate-300">
-                Start Date
-              </Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={params.startDate}
-                onChange={(e) => updateParams("startDate", e.target.value)}
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="endDate" className="text-slate-300">
-                End Date
-              </Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={params.endDate}
-                onChange={(e) => updateParams("endDate", e.target.value)}
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-            </div>
+          {/* Stock Search Section */}
+          <div className="space-y-4">
+            <Label className="text-slate-300 text-base font-medium">Select Company for Backtesting</Label>
+            <StockSearch 
+              onStockSelect={handleStockSelect}
+              selectedStock={backtestStock}
+              className="w-full"
+            />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="initialCapital" className="text-slate-300">
-                Initial Capital ($)
-              </Label>
-              <Input
-                id="initialCapital"
-                type="number"
-                value={params.initialCapital}
-                onChange={(e) => updateParams("initialCapital", Number(e.target.value))}
-                className="bg-slate-700 border-slate-600 text-white"
-                min="1000"
-                step="1000"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-slate-300">Strategy Description</Label>
-              <div className="p-3 bg-slate-700/30 rounded-lg border border-slate-600">
-                <p className="text-sm text-slate-400">{getStrategyDescription(params.strategy)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Strategy-specific parameters */}
-          {params.strategy === "moving_average" && (
-            <div className="space-y-4">
-              <Separator className="bg-slate-600" />
-              <h4 className="text-white font-semibold">Moving Average Parameters</h4>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Short MA Period</Label>
-                  <Input
-                    type="number"
-                    value={params.parameters?.shortMA || 10}
-                    onChange={(e) => updateStrategyParams("shortMA", Number(e.target.value))}
-                    className="bg-slate-700 border-slate-600 text-white"
-                    min="1"
-                    max="50"
-                  />
+          {!backtestStock && (
+            <Card className="bg-slate-700/30 border-slate-600">
+              <CardContent className="text-center py-8">
+                <Search className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-white mb-2">Search for a Company</h3>
+                <p className="text-slate-400 mb-4">
+                  Use the search box above to find any company, then run backtesting strategies on its historical data
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 text-sm text-slate-500">
+                  <span>Try searching for:</span>
+                  <span className="text-blue-400">Apple</span>
+                  <span className="text-blue-400">Reliance</span>
+                  <span className="text-blue-400">Tesla</span>
+                  <span className="text-blue-400">Microsoft</span>
+                  <span className="text-blue-400">TCS</span>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Long MA Period</Label>
-                  <Input
-                    type="number"
-                    value={params.parameters?.longMA || 30}
-                    onChange={(e) => updateStrategyParams("longMA", Number(e.target.value))}
-                    className="bg-slate-700 border-slate-600 text-white"
-                    min="1"
-                    max="200"
-                  />
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
 
-          {params.strategy === "rsi_strategy" && (
-            <div className="space-y-4">
-              <Separator className="bg-slate-600" />
-              <h4 className="text-white font-semibold">RSI Parameters</h4>
-              <div className="grid md:grid-cols-3 gap-4">
+          {backtestStock && (
+            <>
+              {/* Strategy Configuration */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-slate-300">RSI Period</Label>
+                  <Label htmlFor="strategy" className="text-slate-300">
+                    Strategy
+                  </Label>
+                  <Select value={params.strategy} onValueChange={(value: any) => updateParams("strategy", value)}>
+                    <SelectTrigger className="bg-slate-700 border-slate-600">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-700 border-slate-600">
+                      <SelectItem value="buy_and_hold">Buy & Hold</SelectItem>
+                      <SelectItem value="moving_average">Moving Average</SelectItem>
+                      <SelectItem value="rsi_strategy">RSI Strategy</SelectItem>
+                      <SelectItem value="momentum">Momentum</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="startDate" className="text-slate-300">
+                    Start Date
+                  </Label>
                   <Input
-                    type="number"
-                    value={params.parameters?.rsiPeriod || 14}
-                    onChange={(e) => updateStrategyParams("rsiPeriod", Number(e.target.value))}
+                    id="startDate"
+                    type="date"
+                    value={params.startDate}
+                    onChange={(e) => updateParams("startDate", e.target.value)}
                     className="bg-slate-700 border-slate-600 text-white"
-                    min="2"
-                    max="50"
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label className="text-slate-300">Overbought Level</Label>
+                  <Label htmlFor="endDate" className="text-slate-300">
+                    End Date
+                  </Label>
                   <Input
-                    type="number"
-                    value={params.parameters?.rsiOverbought || 70}
-                    onChange={(e) => updateStrategyParams("rsiOverbought", Number(e.target.value))}
+                    id="endDate"
+                    type="date"
+                    value={params.endDate}
+                    onChange={(e) => updateParams("endDate", e.target.value)}
                     className="bg-slate-700 border-slate-600 text-white"
-                    min="50"
-                    max="90"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Oversold Level</Label>
-                  <Input
-                    type="number"
-                    value={params.parameters?.rsiOversold || 30}
-                    onChange={(e) => updateStrategyParams("rsiOversold", Number(e.target.value))}
-                    className="bg-slate-700 border-slate-600 text-white"
-                    min="10"
-                    max="50"
                   />
                 </div>
               </div>
-            </div>
-          )}
 
-          {params.strategy === "momentum" && (
-            <div className="space-y-4">
-              <Separator className="bg-slate-600" />
-              <h4 className="text-white font-semibold">Momentum Parameters</h4>
-              <div className="space-y-2">
-                <Label className="text-slate-300">Momentum Period (days)</Label>
-                <Input
-                  type="number"
-                  value={params.parameters?.momentumPeriod || 20}
-                  onChange={(e) => updateStrategyParams("momentumPeriod", Number(e.target.value))}
-                  className="bg-slate-700 border-slate-600 text-white"
-                  min="5"
-                  max="100"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="initialCapital" className="text-slate-300">
+                    Initial Capital ($)
+                  </Label>
+                  <Input
+                    id="initialCapital"
+                    type="number"
+                    value={params.initialCapital}
+                    onChange={(e) => updateParams("initialCapital", Number(e.target.value))}
+                    className="bg-slate-700 border-slate-600 text-white"
+                    min="1000"
+                    step="1000"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Strategy Description</Label>
+                  <div className="p-3 bg-slate-700/30 rounded-lg border border-slate-600">
+                    <p className="text-sm text-slate-400">{getStrategyDescription(params.strategy)}</p>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <Button onClick={runBacktest} disabled={loading} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
-              {loading ? (
-                <>
-                  <LoadingSpinner size="sm" className="mr-2" />
-                  Running Backtest...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4 mr-2" />
-                  Run Backtest
-                </>
+              {/* Strategy-specific parameters */}
+              {params.strategy === "moving_average" && (
+                <div className="space-y-4">
+                  <Separator className="bg-slate-600" />
+                  <h4 className="text-white font-semibold">Moving Average Parameters</h4>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Short MA Period</Label>
+                      <Input
+                        type="number"
+                        value={params.parameters?.shortMA || 10}
+                        onChange={(e) => updateStrategyParams("shortMA", Number(e.target.value))}
+                        className="bg-slate-700 border-slate-600 text-white"
+                        min="1"
+                        max="50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Long MA Period</Label>
+                      <Input
+                        type="number"
+                        value={params.parameters?.longMA || 30}
+                        onChange={(e) => updateStrategyParams("longMA", Number(e.target.value))}
+                        className="bg-slate-700 border-slate-600 text-white"
+                        min="1"
+                        max="200"
+                      />
+                    </div>
+                  </div>
+                </div>
               )}
-            </Button>
 
-            {error && (
-              <div className="flex items-center gap-2 text-red-400">
-                <AlertTriangle className="h-4 w-4" />
-                <span className="text-sm">{error}</span>
+              {params.strategy === "rsi_strategy" && (
+                <div className="space-y-4">
+                  <Separator className="bg-slate-600" />
+                  <h4 className="text-white font-semibold">RSI Parameters</h4>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">RSI Period</Label>
+                      <Input
+                        type="number"
+                        value={params.parameters?.rsiPeriod || 14}
+                        onChange={(e) => updateStrategyParams("rsiPeriod", Number(e.target.value))}
+                        className="bg-slate-700 border-slate-600 text-white"
+                        min="2"
+                        max="50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Overbought Level</Label>
+                      <Input
+                        type="number"
+                        value={params.parameters?.rsiOverbought || 70}
+                        onChange={(e) => updateStrategyParams("rsiOverbought", Number(e.target.value))}
+                        className="bg-slate-700 border-slate-600 text-white"
+                        min="50"
+                        max="90"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Oversold Level</Label>
+                      <Input
+                        type="number"
+                        value={params.parameters?.rsiOversold || 30}
+                        onChange={(e) => updateStrategyParams("rsiOversold", Number(e.target.value))}
+                        className="bg-slate-700 border-slate-600 text-white"
+                        min="10"
+                        max="50"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {params.strategy === "momentum" && (
+                <div className="space-y-4">
+                  <Separator className="bg-slate-600" />
+                  <h4 className="text-white font-semibold">Momentum Parameters</h4>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Momentum Period (days)</Label>
+                    <Input
+                      type="number"
+                      value={params.parameters?.momentumPeriod || 20}
+                      onChange={(e) => updateStrategyParams("momentumPeriod", Number(e.target.value))}
+                      className="bg-slate-700 border-slate-600 text-white"
+                      min="5"
+                      max="100"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <Button onClick={runBacktest} disabled={loading} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+                  {loading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      Running Backtest...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Run Backtest on {backtestStock.symbol}
+                    </>
+                  )}
+                </Button>
+
+                {error && (
+                  <div className="flex items-center gap-2 text-red-400">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span className="text-sm">{error}</span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
