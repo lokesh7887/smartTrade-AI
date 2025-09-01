@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import type { Stock } from "@/lib/models/Stock"
+import { RealTimeDataService } from "@/lib/realTimeData"
 
 export async function GET(request: Request, context: { params: Promise<{ symbol: string }> }) {
   try {
@@ -64,10 +65,28 @@ export async function GET(request: Request, context: { params: Promise<{ symbol:
       await stocksCollection.insertOne(stock)
     }
 
-    const currentPrice = stock.price
-    const previousPrice = stock.historicalData[stock.historicalData.length - 2]?.close || stock.price
-    const change = currentPrice - previousPrice
-    const changePercent = (change / previousPrice) * 100
+    // Prefer live quote for current price if available
+    let currentPrice = stock.price
+    let change = 0
+    let changePercent = 0
+
+    try {
+      const rtd = new RealTimeDataService()
+      const live = await rtd.getStockQuote(symbol)
+      if (live && live.price > 0) {
+        currentPrice = live.price
+        change = live.change
+        changePercent = live.changePercent
+      } else {
+        const previousPrice = stock.historicalData[stock.historicalData.length - 2]?.close || stock.price
+        change = currentPrice - previousPrice
+        changePercent = previousPrice ? (change / previousPrice) * 100 : 0
+      }
+    } catch {
+      const previousPrice = stock.historicalData[stock.historicalData.length - 2]?.close || stock.price
+      change = currentPrice - previousPrice
+      changePercent = previousPrice ? (change / previousPrice) * 100 : 0
+    }
 
     return NextResponse.json({
       success: true,

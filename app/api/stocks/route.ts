@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import type { Stock } from "@/lib/models/Stock"
+import { RealTimeDataService } from "@/lib/realTimeData"
 
 // Generate realistic stock data and store in MongoDB
 const generateAndStoreStockData = async () => {
@@ -21,11 +22,30 @@ const generateAndStoreStockData = async () => {
     { symbol: "ADANIENT", name: "Adani Enterprises Ltd.", sector: "Conglomerate" },
   ]
 
-  const stocks = stocksData.map((stock) => {
+  const rt = new RealTimeDataService()
+
+  const stocks = await Promise.all(stocksData.map(async (stock) => {
     // INR price ranges typical for NSE large caps
-    const basePrice = Math.random() * 2500 + 100 // ₹100 - ₹2600
-    const change = (Math.random() - 0.5) * 20
-    const changePercent = (change / basePrice) * 100
+    let livePrice: number | null = null
+    let liveChange: number | null = null
+    let liveChangePercent: number | null = null
+    let liveVolume: number | null = null
+    let lastUpdated = new Date()
+
+    try {
+      const quote = await rt.getStockQuote(stock.symbol)
+      if (quote) {
+        livePrice = quote.price
+        liveChange = quote.change
+        liveChangePercent = quote.changePercent
+        liveVolume = quote.volume
+        lastUpdated = quote.timestamp
+      }
+    } catch {}
+
+    const basePrice = livePrice ?? (Math.random() * 2500 + 100) // ₹100 - ₹2600
+    const change = liveChange ?? ((Math.random() - 0.5) * 20)
+    const changePercent = liveChangePercent ?? ((change / basePrice) * 100)
 
     // Generate historical data
     const historicalData = []
@@ -70,9 +90,9 @@ const generateAndStoreStockData = async () => {
       price: Number.parseFloat(basePrice.toFixed(2)),
       change: Number.parseFloat(change.toFixed(2)),
       changePercent: Number.parseFloat(changePercent.toFixed(2)),
-      volume: Math.floor(Math.random() * 10000000) + 1000000,
+      volume: liveVolume ?? (Math.floor(Math.random() * 10000000) + 1000000),
       marketCap: Math.floor(Math.random() * 10_000_00_00_000) + 50_000_00_00_000, // INR-ish large cap
-      lastUpdated: new Date(),
+      lastUpdated,
       historicalData,
       technicalIndicators: {
         sma20: Number.parseFloat(sma20.toFixed(2)),
@@ -81,7 +101,7 @@ const generateAndStoreStockData = async () => {
         macd: Number.parseFloat((Math.random() * 10 - 5).toFixed(2)),
       },
     }
-  })
+  }))
 
   // Upsert stocks (update if exists, insert if not)
   for (const stock of stocks) {
