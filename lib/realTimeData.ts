@@ -81,9 +81,12 @@ export class RealTimeDataService {
 
   private async getYahooQuote(symbol: string): Promise<StockQuote | null> {
     try {
+      // Map symbols to Yahoo Finance format
+      const yahooSymbol = this.mapToYahooSymbol(symbol)
+      
       // Yahoo Finance API (free alternative)
       const response = await fetch(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`,
+        `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}`,
         {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -95,16 +98,15 @@ export class RealTimeDataService {
       if (data.chart?.result?.[0]) {
         const result = data.chart.result[0]
         const meta = result.meta
-        const quote = result.indicators?.quote?.[0]
         
-        if (meta && quote) {
-          const currentPrice = meta.regularMarketPrice || meta.previousClose
+        if (meta && meta.regularMarketPrice) {
+          const currentPrice = meta.regularMarketPrice
           const previousClose = meta.previousClose
           const change = currentPrice - previousClose
           const changePercent = (change / previousClose) * 100
 
           return {
-            symbol: meta.symbol,
+            symbol: symbol, // Return original symbol, not Yahoo format
             price: Number.parseFloat(currentPrice.toFixed(2)),
             change: Number.parseFloat(change.toFixed(2)),
             changePercent: Number.parseFloat(changePercent.toFixed(2)),
@@ -122,6 +124,25 @@ export class RealTimeDataService {
       console.error("Error fetching Yahoo quote:", error)
       return null
     }
+  }
+
+  private mapToYahooSymbol(symbol: string): string {
+    // Indian stocks mapping (NSE)
+    const indianStocks = {
+      'RELIANCE': 'RELIANCE.NS',
+      'TCS': 'TCS.NS',
+      'INFY': 'INFY.NS',
+      'HDFCBANK': 'HDFCBANK.NS',
+      'ICICIBANK': 'ICICIBANK.NS',
+      'ITC': 'ITC.NS',
+      'SBIN': 'SBIN.NS',
+      'BHARTIARTL': 'BHARTIARTL.NS',
+      'HINDUNILVR': 'HINDUNILVR.NS',
+      'KOTAKBANK': 'KOTAKBANK.NS'
+    }
+
+    // Return mapped symbol for Indian stocks, otherwise return as-is for US stocks
+    return indianStocks[symbol as keyof typeof indianStocks] || symbol
   }
 
   private async getFinnhubQuote(symbol: string): Promise<StockQuote | null> {

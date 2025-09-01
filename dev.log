@@ -48,3 +48,15 @@ Error fetching cached data for RELIANCE: Error: Please add your MongoDB URI to .
   13 |   const options = {}
  GET /api/stocks/search?q=reliance 200 in 170ms
  GET /api/stocks/search?q=microsoft 200 in 66ms
+ ✓ Compiled /api/stocks/search in 32ms
+ ⚠ ./lib/realTimeData.ts
+Attempted import error: 'Stock' is not exported from './models/Stock' (imported as 'Stock').
+
+Import trace for requested module:
+./lib/realTimeData.ts
+./app/api/stocks/search/route.ts
+ GET /api/stocks/search?q=reliance 200 in 174ms
+ ○ Compiling /api/stocks/search ...
+ GET /api/stocks/search?q=tcs 200 in 53ms
+ GET /api/stocks/search?q=infosys 200 in 44ms
+ GET /api/stocks/search?q=apple 200 in 62ms
