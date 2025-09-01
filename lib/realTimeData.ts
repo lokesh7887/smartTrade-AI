@@ -79,42 +79,70 @@ export class RealTimeDataService {
     }
   }
 
+  private buildYahooSymbolCandidates(rawSymbol: string): string[] {
+    const upper = (rawSymbol || "").toUpperCase().trim()
+    if (!upper) return []
+
+    // If symbol already has a suffix, try as-is first
+    const hasSuffix = upper.includes(".")
+    const candidates: string[] = []
+
+    if (hasSuffix) {
+      candidates.push(upper)
+    } else {
+      // Try plain first, then common Indian exchange suffixes
+      candidates.push(upper)
+      candidates.push(`${upper}.NS`) // NSE India
+      candidates.push(`${upper}.BO`) // BSE India
+    }
+
+    return candidates
+  }
+
   private async getYahooQuote(symbol: string): Promise<StockQuote | null> {
     try {
-      // Yahoo Finance API (free alternative)
-      const response = await fetch(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`,
-        {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          }
-        }
-      )
-      const data = await response.json()
+      const candidates = this.buildYahooSymbolCandidates(symbol)
 
-      if (data.chart?.result?.[0]) {
-        const result = data.chart.result[0]
-        const meta = result.meta
-        const quote = result.indicators?.quote?.[0]
-        
-        if (meta && quote) {
-          const currentPrice = meta.regularMarketPrice || meta.previousClose
-          const previousClose = meta.previousClose
-          const change = currentPrice - previousClose
-          const changePercent = (change / previousClose) * 100
+      for (const candidate of candidates) {
+        try {
+          const response = await fetch(
+            `https://query1.finance.yahoo.com/v8/finance/chart/${candidate}`,
+            {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              }
+            }
+          )
+          const data = await response.json()
 
-          return {
-            symbol: meta.symbol,
-            price: Number.parseFloat(currentPrice.toFixed(2)),
-            change: Number.parseFloat(change.toFixed(2)),
-            changePercent: Number.parseFloat(changePercent.toFixed(2)),
-            volume: meta.regularMarketVolume || 0,
-            marketCap: meta.marketCap || 0,
-            pe: meta.trailingPE || 0,
-            high52Week: meta.fiftyTwoWeekHigh || 0,
-            low52Week: meta.fiftyTwoWeekLow || 0,
-            timestamp: new Date(),
+          if (data.chart?.result?.[0]) {
+            const result = data.chart.result[0]
+            const meta = result.meta
+            const quote = result.indicators?.quote?.[0]
+
+            if (meta && quote) {
+              const currentPrice = meta.regularMarketPrice || meta.previousClose
+              const previousClose = meta.previousClose || currentPrice
+              const change = currentPrice - previousClose
+              const changePercent = previousClose ? (change / previousClose) * 100 : 0
+
+              return {
+                symbol: meta.symbol,
+                price: Number.parseFloat(currentPrice.toFixed(2)),
+                change: Number.parseFloat(change.toFixed(2)),
+                changePercent: Number.parseFloat(changePercent.toFixed(2)),
+                volume: meta.regularMarketVolume || 0,
+                marketCap: meta.marketCap || 0,
+                pe: meta.trailingPE || 0,
+                high52Week: meta.fiftyTwoWeekHigh || 0,
+                low52Week: meta.fiftyTwoWeekLow || 0,
+                timestamp: new Date(),
+              }
+            }
           }
+        } catch (_) {
+          // Try next candidate
+          continue
         }
       }
       return null
