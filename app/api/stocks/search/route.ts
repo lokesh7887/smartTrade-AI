@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import type { Stock } from "@/lib/models/Stock"
-import { RealTimeDataService } from "@/lib/realTimeData"
 
 // Global stock database with major companies worldwide
 const globalStocks = [
@@ -100,139 +99,27 @@ export async function GET(request: Request) {
       stock.sector.toLowerCase().includes(query)
     ).slice(0, 20) // Limit to 20 results
 
-    // Initialize real-time data service
-    const realTimeService = new RealTimeDataService()
+    // Generate mock price data for each result
+    const stocksWithData = results.map(stock => {
+      const basePrice = Math.random() * 2000 + 50
+      const change = (Math.random() - 0.5) * 100
+      const changePercent = (change / basePrice) * 100
 
-    // Fetch real live price data for each result
-    const stocksWithData = await Promise.all(results.map(async (stock) => {
-      try {
-        // Try to get live price data
-        const liveQuote = await realTimeService.getStockQuote(stock.symbol)
-        
-        if (liveQuote) {
-          return {
-            ...stock,
-            price: liveQuote.price,
-            change: liveQuote.change,
-            changePercent: liveQuote.changePercent,
-            volume: liveQuote.volume || Math.floor(Math.random() * 10000000) + 1000000,
-            marketCap: liveQuote.marketCap || Math.floor(Math.random() * 5000000000000) + 100000000000,
-            currency: stock.country === "India" ? "INR" : 
-                     stock.country === "USA" ? "USD" : 
-                     stock.country === "UK" ? "GBP" : 
-                     stock.country === "Japan" ? "JPY" : 
-                     stock.country === "Hong Kong" ? "HKD" : "USD",
-            lastUpdated: liveQuote.timestamp,
-          }
-        } else {
-          // Fallback to cached data from database if live data fails
-          const db = await getDatabase()
-          const stocksCollection = db.collection<Stock>("stocks")
-          const cachedStock = await stocksCollection.findOne({ symbol: stock.symbol })
-          
-          if (cachedStock) {
-            return {
-              ...stock,
-              price: cachedStock.price,
-              change: cachedStock.change,
-              changePercent: cachedStock.changePercent,
-              volume: cachedStock.volume,
-              marketCap: cachedStock.marketCap,
-              currency: stock.country === "India" ? "INR" : 
-                       stock.country === "USA" ? "USD" : 
-                       stock.country === "UK" ? "GBP" : 
-                       stock.country === "Japan" ? "JPY" : 
-                       stock.country === "Hong Kong" ? "HKD" : "USD",
-              lastUpdated: cachedStock.lastUpdated,
-            }
-          } else {
-            // Last resort: reasonable default prices (not random)
-            const defaultPrices = {
-              // Major US stocks - approximate ranges
-              "AAPL": 190, "MSFT": 420, "GOOGL": 175, "AMZN": 185, "TSLA": 250,
-              "NVDA": 140, "META": 580, "NFLX": 700, "JPM": 230, "JNJ": 160,
-              // Major Indian stocks - approximate ranges in INR
-              "RELIANCE": 2800, "TCS": 4200, "INFY": 1900, "HDFCBANK": 1750, "ICICIBANK": 1300,
-              "ITC": 470, "SBIN": 850, "BHARTIARTL": 1650, "HINDUNILVR": 2400, "KOTAKBANK": 1800
-            }
-            
-            const basePrice = defaultPrices[stock.symbol as keyof typeof defaultPrices] || 100
-            const change = (Math.random() - 0.5) * (basePrice * 0.05) // Max 5% change
-            const changePercent = (change / basePrice) * 100
-
-            return {
-              ...stock,
-              price: Number.parseFloat(basePrice.toFixed(2)),
-              change: Number.parseFloat(change.toFixed(2)),
-              changePercent: Number.parseFloat(changePercent.toFixed(2)),
-              volume: Math.floor(Math.random() * 10000000) + 1000000,
-              marketCap: Math.floor(Math.random() * 5000000000000) + 100000000000,
-              currency: stock.country === "India" ? "INR" : 
-                       stock.country === "USA" ? "USD" : 
-                       stock.country === "UK" ? "GBP" : 
-                       stock.country === "Japan" ? "JPY" : 
-                       stock.country === "Hong Kong" ? "HKD" : "USD",
-              lastUpdated: new Date(),
-            }
-          }
-        }
-      } catch (error) {
-        console.error(`Error fetching live data for ${stock.symbol}:`, error)
-        
-        // Fallback to cached data on error
-        try {
-          const db = await getDatabase()
-          const stocksCollection = db.collection<Stock>("stocks")
-          const cachedStock = await stocksCollection.findOne({ symbol: stock.symbol })
-          
-          if (cachedStock) {
-            return {
-              ...stock,
-              price: cachedStock.price,
-              change: cachedStock.change,
-              changePercent: cachedStock.changePercent,
-              volume: cachedStock.volume,
-              marketCap: cachedStock.marketCap,
-              currency: stock.country === "India" ? "INR" : 
-                       stock.country === "USA" ? "USD" : 
-                       stock.country === "UK" ? "GBP" : 
-                       stock.country === "Japan" ? "JPY" : 
-                       stock.country === "Hong Kong" ? "HKD" : "USD",
-              lastUpdated: cachedStock.lastUpdated,
-            }
-          }
-        } catch (dbError) {
-          console.error(`Error fetching cached data for ${stock.symbol}:`, dbError)
-        }
-        
-        // Final fallback with realistic default prices
-        const defaultPrices = {
-          "AAPL": 190, "MSFT": 420, "GOOGL": 175, "AMZN": 185, "TSLA": 250,
-          "NVDA": 140, "META": 580, "NFLX": 700, "JPM": 230, "JNJ": 160,
-          "RELIANCE": 2800, "TCS": 4200, "INFY": 1900, "HDFCBANK": 1750, "ICICIBANK": 1300,
-          "ITC": 470, "SBIN": 850, "BHARTIARTL": 1650, "HINDUNILVR": 2400, "KOTAKBANK": 1800
-        }
-        
-        const basePrice = defaultPrices[stock.symbol as keyof typeof defaultPrices] || 100
-        const change = (Math.random() - 0.5) * (basePrice * 0.03) // Max 3% change for fallback
-        const changePercent = (change / basePrice) * 100
-
-        return {
-          ...stock,
-          price: Number.parseFloat(basePrice.toFixed(2)),
-          change: Number.parseFloat(change.toFixed(2)),
-          changePercent: Number.parseFloat(changePercent.toFixed(2)),
-          volume: Math.floor(Math.random() * 10000000) + 1000000,
-          marketCap: Math.floor(Math.random() * 5000000000000) + 100000000000,
-          currency: stock.country === "India" ? "INR" : 
-                   stock.country === "USA" ? "USD" : 
-                   stock.country === "UK" ? "GBP" : 
-                   stock.country === "Japan" ? "JPY" : 
-                   stock.country === "Hong Kong" ? "HKD" : "USD",
-          lastUpdated: new Date(),
-        }
+      return {
+        ...stock,
+        price: Number.parseFloat(basePrice.toFixed(2)),
+        change: Number.parseFloat(change.toFixed(2)),
+        changePercent: Number.parseFloat(changePercent.toFixed(2)),
+        volume: Math.floor(Math.random() * 10000000) + 1000000,
+        marketCap: Math.floor(Math.random() * 5000000000000) + 100000000000,
+        currency: stock.country === "India" ? "INR" : 
+                 stock.country === "USA" ? "USD" : 
+                 stock.country === "UK" ? "GBP" : 
+                 stock.country === "Japan" ? "JPY" : 
+                 stock.country === "Hong Kong" ? "HKD" : "USD",
+        lastUpdated: new Date(),
       }
-    }))
+    })
 
     return NextResponse.json({
       success: true,
