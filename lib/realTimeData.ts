@@ -37,32 +37,89 @@ export class RealTimeDataService {
 
   async getStockQuote(symbol: string): Promise<StockQuote | null> {
     try {
-      // Try Alpha Vantage first
-      const response = await fetch(
-        `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${this.alphaVantageKey}`,
-      )
-      const data = await response.json()
+      // Try Yahoo Finance API first (free and reliable)
+      const yahooQuote = await this.getYahooQuote(symbol)
+      if (yahooQuote) {
+        return yahooQuote
+      }
 
-      if (data["Global Quote"]) {
-        const quote = data["Global Quote"]
-        return {
-          symbol: quote["01. symbol"],
-          price: Number.parseFloat(quote["05. price"]),
-          change: Number.parseFloat(quote["09. change"]),
-          changePercent: Number.parseFloat(quote["10. change percent"].replace("%", "")),
-          volume: Number.parseInt(quote["06. volume"]),
-          marketCap: 0, // Would need additional API call
-          pe: 0, // Would need additional API call
-          high52Week: Number.parseFloat(quote["03. high"]),
-          low52Week: Number.parseFloat(quote["04. low"]),
-          timestamp: new Date(),
+      // Try Alpha Vantage if API key is available
+      if (this.alphaVantageKey) {
+        const response = await fetch(
+          `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${this.alphaVantageKey}`,
+        )
+        const data = await response.json()
+
+        if (data["Global Quote"] && data["Global Quote"]["01. symbol"]) {
+          const quote = data["Global Quote"]
+          return {
+            symbol: quote["01. symbol"],
+            price: Number.parseFloat(quote["05. price"]),
+            change: Number.parseFloat(quote["09. change"]),
+            changePercent: Number.parseFloat(quote["10. change percent"].replace("%", "")),
+            volume: Number.parseInt(quote["06. volume"]),
+            marketCap: 0, // Would need additional API call
+            pe: 0, // Would need additional API call
+            high52Week: Number.parseFloat(quote["03. high"]),
+            low52Week: Number.parseFloat(quote["04. low"]),
+            timestamp: new Date(),
+          }
         }
       }
 
-      // Fallback to Finnhub
-      return await this.getFinnhubQuote(symbol)
+      // Fallback to Finnhub if API key is available
+      if (this.finnhubKey) {
+        return await this.getFinnhubQuote(symbol)
+      }
+
+      return null
     } catch (error) {
       console.error("Error fetching stock quote:", error)
+      return null
+    }
+  }
+
+  private async getYahooQuote(symbol: string): Promise<StockQuote | null> {
+    try {
+      // Yahoo Finance API (free alternative)
+      const response = await fetch(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        }
+      )
+      const data = await response.json()
+
+      if (data.chart?.result?.[0]) {
+        const result = data.chart.result[0]
+        const meta = result.meta
+        const quote = result.indicators?.quote?.[0]
+        
+        if (meta && quote) {
+          const currentPrice = meta.regularMarketPrice || meta.previousClose
+          const previousClose = meta.previousClose
+          const change = currentPrice - previousClose
+          const changePercent = (change / previousClose) * 100
+
+          return {
+            symbol: meta.symbol,
+            price: Number.parseFloat(currentPrice.toFixed(2)),
+            change: Number.parseFloat(change.toFixed(2)),
+            changePercent: Number.parseFloat(changePercent.toFixed(2)),
+            volume: meta.regularMarketVolume || 0,
+            marketCap: meta.marketCap || 0,
+            pe: meta.trailingPE || 0,
+            high52Week: meta.fiftyTwoWeekHigh || 0,
+            low52Week: meta.fiftyTwoWeekLow || 0,
+            timestamp: new Date(),
+          }
+        }
+      }
+      return null
+    } catch (error) {
+      console.error("Error fetching Yahoo quote:", error)
       return null
     }
   }
@@ -72,18 +129,21 @@ export class RealTimeDataService {
       const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${this.finnhubKey}`)
       const data = await response.json()
 
-      return {
-        symbol,
-        price: data.c,
-        change: data.d,
-        changePercent: data.dp,
-        volume: 0, // Not provided in this endpoint
-        marketCap: 0,
-        pe: 0,
-        high52Week: data.h,
-        low52Week: data.l,
-        timestamp: new Date(data.t * 1000),
+      if (data.c && data.c > 0) {
+        return {
+          symbol,
+          price: data.c,
+          change: data.d,
+          changePercent: data.dp,
+          volume: 0, // Not provided in this endpoint
+          marketCap: 0,
+          pe: 0,
+          high52Week: data.h,
+          low52Week: data.l,
+          timestamp: new Date(data.t * 1000),
+        }
       }
+      return null
     } catch (error) {
       console.error("Error fetching Finnhub quote:", error)
       return null
